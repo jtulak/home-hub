@@ -85,6 +85,7 @@ class Controller(object):
         for (pin, event) in binding:
             print("setting up pin %d" % pin)
             GPIO.setup(pin, GPIO.IN)
+            GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
             GPIO.add_event_detect(pin, GPIO.RISING, callback=self.callback, bouncetime=200)
 
     def pin2event(self, activated_pin):

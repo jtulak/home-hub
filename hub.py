@@ -30,15 +30,12 @@ from huefri.common import COLORS_MAP
 from huefri.hue import Hue
 from huefri.tradfri import Tradfri
 
-HUE = None
-TRADFRI = None
 
 def main():
-    global HUE, TRADFRI
     try:
-        HUE = Hue.autoinit()
-        TRADFRI = Tradfri.autoinit(HUE)
-        HUE.set_tradfri(TRADFRI)
+        hue = Hue.autoinit()
+        tradfri = Tradfri.autoinit(hue)
+        hue.set_tradfri(tradfri)
     except HuefriException:
         # message is already printed
         sys.exit(1)
@@ -48,22 +45,22 @@ def main():
 
     # bind GPIO pins
     c = Controller([
-        (12, onoff),
-        (13, up),
-        (19, down),
-        (5, right),
-        (6, left),
-        (26, off),
-        (20, on),
-        ])
+        (12, 'onoff'),
+        (13, 'up'),
+        (19, 'down'),
+        (5,  'right'),
+        (6,  'left'),
+        (26, 'off'),
+        (20, 'on'),
+        ], hue=hue, tradfri=tradfri)
     """
         Forever check the main light and update Hue lights.
     """
     try:
         while True:
             try:
-                TRADFRI.update()
-                HUE.update()
+                tradfri.update()
+                hue.update()
             except pytradfri.error.RequestTimeout:
                 """ This exception is raised here and there and doesn't cause anything.
                     So print just a short notice, not a full stacktrace.
@@ -75,54 +72,84 @@ def main():
             time.sleep(1)
     except KeyboardInterrupt:
         log("MAIN", "Exiting on ^c.")
+        GPIO.cleanup()
         sys.exit(0)
 
 
-def up(pin):
-    print("up")
-    HUE.brightness_inc()
-    TRADFRI.brightness_inc()
-
-def down(pin):
-    print("down")
-    HUE.brightness_dec()
-    TRADFRI.brightness_dec()
-
-def left(pin):
-    print("left")
-    HUE.color_prev()
-    TRADFRI.color_prev()
-
-def right(pin):
-    print("right")
-    HUE.color_next()
-    TRADFRI.color_next()
-
-def onoff(pin):
-    print("onoff")
-    if TRADFRI.state:
-        off(pin)
-    else:
-        on(pin)
-
-def on(pin):
-    print("on")
-    HUE.set_brightness(255)
-    TRADFRI.set_brightness(255)
-
-def off(pin):
-    print("off")
-    HUE.set_brightness(0)
-    TRADFRI.set_brightness(0)
-
 class Controller(object):
-    def __init__(self, binding):
-        """ binding is a list of tuples (pin number, callback) """
+    def __init__(self, binding, hue, tradfri):
+        """ binding is a list of tuples (pin number, event) """
         self._binding = binding
-        for (pin, callback) in binding:
+        self.hue = hue
+        self.tradfri = tradfri
+        for (pin, event) in binding:
             print("setting up pin %d" % pin)
             GPIO.setup(pin, GPIO.IN)
-            GPIO.add_event_detect(pin, GPIO.RISING, callback=callback, bouncetime=200)
+            GPIO.add_event_detect(pin, GPIO.RISING, callback=self.callback, bouncetime=200)
+
+    def pin2event(self, activated_pin):
+        for (pin, event) in self._binding:
+            if activated_pin == pin:
+                return event
+        raise ValueError("Unknown pin %d" % activated_pin)
+
+
+    def callback(self, activated_pin):
+        event = self.pin2event(activated_pin)
+        if event == 'up':
+            self.up()
+        elif event == 'down':
+            self.down()
+        elif event == 'left':
+            self.left()
+        elif event == 'right':
+            self.right()
+        elif event == 'on':
+            self.on()
+        elif event == 'off':
+            self.off()
+        elif event == 'onoff':
+            self.onoff()
+        else:
+            raise ValueError("Unknown event '%s' for known pin %d" % (event, activated_pin))
+
+
+    def up(self):
+        print("up")
+        self.hue.brightness_inc()
+        self.tradfri.brightness_inc()
+
+    def down(self):
+        print("down")
+        self.hue.brightness_dec()
+        self.tradfri.brightness_dec()
+
+    def left(self):
+        print("left")
+        self.hue.color_prev()
+        self.tradfri.color_prev()
+
+    def right(self):
+        print("right")
+        self.hue.color_next()
+        self.tradfri.color_next()
+
+    def onoff(self):
+        print("onoff")
+        if self.tradfri.state:
+            self.off()
+        else:
+            self.on()
+
+    def on(self):
+        print("on")
+        self.hue.set_brightness(255)
+        self.tradfri.set_brightness(255)
+
+    def off(self):
+        print("off")
+        self.hue.set_brightness(0)
+        self.tradfri.set_brightness(0)
 
 
 

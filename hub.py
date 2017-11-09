@@ -18,6 +18,7 @@
 #
 
 import time
+from datetime import datetime, timedelta
 import sys
 import RPi.GPIO as GPIO
 GPIO.setmode(GPIO.BCM)
@@ -77,16 +78,29 @@ def main():
 
 
 class Controller(object):
+
+    # delay between two consecutive events on one button, in milliseconds
+    bouncetime = 100
+    # delay before another button is accepted, in milliseconds
+    sequncetime = 200
+    # the minimum time a button has to be pressed to register the event, in ms
+    filtertime = 5
+
     def __init__(self, binding, hue, tradfri):
         """ binding is a list of tuples (pin number, event) """
         self._binding = binding
+        self._last_event = None
         self.hue = hue
         self.tradfri = tradfri
+        self._last_event_time = datetime.now() - timedelta(hours=1)
+        self._pressed_time = None
+        self._pressed = None
+
         for (pin, event) in binding:
             print("setting up pin %d" % pin)
             GPIO.setup(pin, GPIO.IN)
             GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
-            GPIO.add_event_detect(pin, GPIO.RISING, callback=self.callback, bouncetime=200)
+            GPIO.add_event_detect(pin, GPIO.BOTH, callback=self.callback, bouncetime=self.bouncetime)
 
     def pin2event(self, activated_pin):
         for (pin, event) in self._binding:
@@ -94,9 +108,57 @@ class Controller(object):
                 return event
         raise ValueError("Unknown pin %d" % activated_pin)
 
-
     def callback(self, activated_pin):
+        if GPIO.input(activated_pin):
+            # rising edge detected
+            self.callback_rising(activated_pin)
+        else:
+            # falling edge detected
+            self.callback_falling(activated_pin)
+
+    def callback_rising(self, activated_pin):
+        """ Callback called after a button was pressed. """
         event = self.pin2event(activated_pin)
+        now = datetime.now()
+
+        if (event == self._last_event and
+                timedelta(milliseconds=self.bouncetime) > (now - self._last_event_time)):
+            # same event, less than bounce time, ignore
+            print("event %s bounced" % event)
+            return
+        if (event != self._last_event and
+                timedelta(milliseconds=self.sequncetime) > (now - self._last_event_time)):
+            # different event, but less than sequence time, ignore
+            print("event %s came too soon after the previous one, ignored" % event)
+            return
+
+        self._pressed = activated_pin
+        self._pressed_time = now
+
+
+    def callback_falling(self, activated_pin):
+        """ Callback called after button release. """
+
+        if self._pressed is None:
+            print("release without press? wtf? pin %d" % activated_pin)
+            return
+
+        event = self.pin2event(activated_pin)
+        now = datetime.now()
+
+        if self._pressed != activated_pin:
+            print("pressed (%d)/released (%d) pin mismatch? o_O"%(self._pressed, activated_pin))
+            return
+        if timedelta(milliseconds=self.filtertime) > (now - self._pressed_time):
+            print("event %s was too short" % event)
+            return
+
+        self._last_event_time = now
+        self._pressed = None
+        self._last_event = event
+        # GET MILLISECONDS AND COMPARE... skip event if within 300 ms or so
+        # Then add a delta between up/down events and detect those events and require some holding time
+
         if event == 'up':
             self.up()
         elif event == 'down':

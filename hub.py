@@ -19,6 +19,7 @@
 
 import time
 from datetime import datetime, timedelta
+import pytradfri
 import sys
 import RPi.GPIO as GPIO
 GPIO.setmode(GPIO.BCM)

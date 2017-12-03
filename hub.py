@@ -21,6 +21,8 @@ import time
 from datetime import datetime, timedelta
 import pytradfri
 import sys
+import os
+import traceback
 import RPi.GPIO as GPIO
 GPIO.setmode(GPIO.BCM)
 
@@ -32,42 +34,63 @@ from huefri.common import COLORS_MAP
 from huefri.hue import Hue
 from huefri.tradfri import Tradfri
 
+def update(hue, tradfri):
+    """ Get updated info from tradfri and hue """
+    if tradfri:
+        tradfri.changed()
+    if hue:
+        hue.changed()
 
 def main():
-    try:
-        hue = Hue.autoinit()
-        tradfri = Tradfri.autoinit(hue)
-        hue.set_tradfri(tradfri)
-    except HuefriException:
-        # message is already printed
-        sys.exit(1)
-    except pytradfri.error.ClientError as e:
-        print("An error occured when initializing Tradfri: %s" % str(e))
-        sys.exit(1)
-
-    # bind GPIO pins
-    c = Controller([
-        (12, 'onoff'),
-        (13, 'up'),
-        (19, 'down'),
-        (5,  'right'),
-        (6,  'left'),
-        (26, 'off'),
-        (20, 'on'),
-        ], hue=hue, tradfri=tradfri)
-    """
-        Forever check the main light and update Hue lights.
-    """
+    initialized = False
+    Config.path = os.path.join(
+                    os.path.dirname(os.path.realpath(__file__)),
+                    "config.json")
+    hue = None
+    tradfri = None
+    c = None
     try:
         while True:
             try:
-                tradfri.update()
-                hue.update()
+                if not initialized:
+                    try:
+                        hue = Hue.autoinit(Config)
+                    except KeyError:
+                        # missing hue config part, try to continue without it
+                        pass
+                    try:
+                        tradfri = Tradfri.autoinit(Config, hue)
+                    except KeyError:
+                        # missing tradfri config part, try to continue without it
+                        pass
+
+                    if hue is not None:
+                        hue.set_tradfri(tradfri)
+                    elif tradfri is not None:
+                        tradfri.set_hue(None)
+                    else:
+                        print("You have to have at least one hub configured.")
+                        sys.exit(1)
+                    # bind GPIO pins
+                    c = Controller([
+                        (12, 'onoff'),
+                        (13, 'up'),
+                        (19, 'down'),
+                        (5,  'right'),
+                        (6,  'left'),
+                        (26, 'off'),
+                        (20, 'on'),
+                        ], hue=hue, tradfri=tradfri)
+                    initialized = True
+                else:
+                    update(hue, tradfri)
+            except pytradfri.error.ClientError as e:
+                print("An error occured with Tradfri: %s" % str(e))
             except pytradfri.error.RequestTimeout:
                 """ This exception is raised here and there and doesn't cause anything.
                     So print just a short notice, not a full stacktrace.
                 """
-                log("MAIN", "Tradfri RequestTimeout().")
+                log("MAIN", "Tradfri request timeout, retrying...")
             except Exception as err:
                 traceback.print_exc()
                 log("MAIN", err)
@@ -76,7 +99,6 @@ def main():
         log("MAIN", "Exiting on ^c.")
         GPIO.cleanup()
         sys.exit(0)
-
 
 class Controller(object):
 
@@ -180,23 +202,31 @@ class Controller(object):
 
     def up(self):
         print("up")
-        self.hue.brightness_inc()
-        self.tradfri.brightness_inc()
+        if self.hue:
+            self.hue.brightness_inc()
+        if self.tradfri:
+            self.tradfri.brightness_inc()
 
     def down(self):
         print("down")
-        self.hue.brightness_dec()
-        self.tradfri.brightness_dec()
+        if self.hue:
+            self.hue.brightness_dec()
+        if self.tradfri:
+            self.tradfri.brightness_dec()
 
     def left(self):
         print("left")
-        self.hue.color_prev()
-        self.tradfri.color_prev()
+        if self.hue:
+            self.hue.color_prev()
+        if self.tradfri:
+            self.tradfri.color_prev()
 
     def right(self):
         print("right")
-        self.hue.color_next()
-        self.tradfri.color_next()
+        if self.hue:
+            self.hue.color_next()
+        if self.tradfri:
+            self.tradfri.color_next()
 
     def onoff(self):
         print("onoff")
@@ -207,13 +237,17 @@ class Controller(object):
 
     def on(self):
         print("on")
-        self.hue.set_brightness(255)
-        self.tradfri.set_brightness(255)
+        if self.hue:
+            self.hue.set_brightness(255)
+        if self.tradfri:
+            self.tradfri.set_brightness(255)
 
     def off(self):
         print("off")
-        self.hue.set_brightness(0)
-        self.tradfri.set_brightness(0)
+        if self.hue:
+            self.hue.set_brightness(0)
+        if self.tradfri:
+            self.tradfri.set_brightness(0)
 
 
 

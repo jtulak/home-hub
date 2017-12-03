@@ -23,6 +23,7 @@ import os
 import traceback
 import pytradfri
 import RPi.GPIO as GPIO
+
 GPIO.setmode(GPIO.BCM)
 
 import huefri
@@ -41,6 +42,7 @@ def main():
         os.path.dirname(os.path.realpath(__file__)),
         "config.json")
     c = None
+    alarm = None
     try:
         while True:
             try:
@@ -48,16 +50,19 @@ def main():
                     # bind GPIO pins
                     c = Controller(Config, [
                         (12, 'onoff'),
-                        (13, 'up'),
+                        (13, 'alarm'),
                         (19, 'down'),
                         (5,  'right'),
                         (6,  'left'),
                         (26, 'off'),
                         (20, 'on'),
+                        (21, 'alarm'),
                         ])
+                    alarm = Alarm(Config, c)
                     initialized = True
                 else:
                     c.update()
+                    alarm.alarm()
             except pytradfri.error.ClientError as ex:
                 print("An error occured with Tradfri: %s" % str(ex))
             except pytradfri.error.RequestTimeout:
@@ -67,6 +72,51 @@ def main():
                 log("MAIN", "Tradfri request timeout, retrying...")
             except huefri.common.BadConfigPathError as ex:
                 print("An error occured with configuration: %s" % str(ex))
+                print("""{
+"alarm": {
+	"sound": {
+		"path": "beep.mp3",
+		"volume_increment": 10,
+		"volume_initial": 10,
+		"force_alsa": true
+	} ,
+	"brightening": {
+		"duration": 1,
+		"step": 1,
+	},
+},
+"tradfri":{
+	"addr": "tradfri",
+	"secret": "XXXXXXXXX",
+	"controlled": [0],
+	"main": 0
+	}
+}
+""")
+            except KeyError as ex:
+                print("An error occured with configuration: %s" % str(ex))
+                print("""{
+"alarm": {
+	"sound": {
+		"path": "beep.mp3",
+		"volume_increment": 10,
+		"volume_initial": 10,
+		"force_alsa": true
+	} ,
+	"brightening": {
+		"duration": 1,
+		"step": 1,
+	},
+},
+"tradfri":{
+	"addr": "tradfri",
+	"secret": "XXXXXXXXX",
+	"controlled": [0],
+	"main": 0
+	}
+}
+""")
+                sys.exit(1)
                 sys.exit(1)
 
             except Exception as err:

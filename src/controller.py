@@ -31,6 +31,11 @@ class Controller(object):
     # the minimum time a button has to be pressed to register the event, in ms
     filtertime = 5
 
+    # If set to a callable object/function, it will be called before any operation
+    # after button release. The standard callback will continue only when this
+    # function returns true
+    callback_condition = None
+    
     def __init__(self, config, binding):
         """ binding is a list of tuples (pin number, event) """
         try:
@@ -56,6 +61,8 @@ class Controller(object):
         self._last_event = None
         self._pressed_time = None
         self._pressed = None
+        self.alarm_start = False
+        self.prev_brightness = 0
 
         for (pin, event) in binding:
             print("setting up pin %d" % pin)
@@ -83,6 +90,7 @@ class Controller(object):
 
     def callback_rising(self, activated_pin):
         """ Callback called after a button was pressed. """
+        print("RISING %d" % activated_pin)
         event = self.pin2event(activated_pin)
         now = datetime.now()
 
@@ -104,6 +112,7 @@ class Controller(object):
     def callback_falling(self, activated_pin):
         """ Callback called after button release. """
 
+        print("FALLING %d" % activated_pin)
         if self._pressed is None:
             print("release without press? wtf? pin %d" % activated_pin)
             return
@@ -124,22 +133,33 @@ class Controller(object):
         # GET MILLISECONDS AND COMPARE... skip event if within 300 ms or so
         # Then add a delta between up/down events and detect those events and require some holding time
 
-        if event == 'up':
-            self.up()
-        elif event == 'down':
-            self.down()
-        elif event == 'left':
-            self.left()
-        elif event == 'right':
-            self.right()
-        elif event == 'on':
-            self.on()
-        elif event == 'off':
-            self.off()
-        elif event == 'onoff':
-            self.onoff()
-        else:
-            raise ValueError("Unknown event '%s' for known pin %d" % (event, activated_pin))
+        if callable(self.callback_condition):
+            if not self.callback_condition():
+                print("Callback interrupted by condition.")
+                return
+
+        try:
+            event(self)
+        except TypeError:
+            if event == 'up':
+                self.up()
+            elif event == 'down':
+                self.down()
+            elif event == 'left':
+                self.left()
+            elif event == 'right':
+                self.right()
+            elif event == 'on':
+                self.on()
+            elif event == 'off':
+                self.off()
+            elif event == 'onoff':
+                self.onoff()
+            elif event == 'alarm':
+                print("Alarm signal")
+                self.alarm_start = True
+            else:
+                raise ValueError("Unknown event '%s' for known pin %d" % (event, activated_pin))
 
 
     def update(self):

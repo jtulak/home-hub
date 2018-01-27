@@ -18,6 +18,7 @@
 #
 
 import time
+import datetime
 import sys
 import os
 import traceback
@@ -72,6 +73,7 @@ def main():
         "config.json")
     c = None
     alarm = None
+    last_reboot = datetime.datetime.now()
     try:
         while True:
             try:
@@ -94,6 +96,17 @@ def main():
                     c.update()
                     alarm.alarm()
 
+                # reboot at 4 am every day, to get around some issues with long-running
+                # gateway
+                now = datetime.datetime.now()
+                if now.hour == 4 and ((now - last_reboot).seconds/3600) > 5:
+                    log("MAIN", "Time for reboot of Tradfri gateway...")
+                    c.tradfri.reboot()
+                    c.cleanup()
+                    initialized = False
+                    time.sleep(10)
+                    last_reboot = now
+
             except pytradfri.error.ClientError as ex:
                 print("An error occured with Tradfri: %s" % str(ex))
 
@@ -108,11 +121,9 @@ def main():
                 print("The config file should look like:\n%s" % CFG_EXAMPLE)
                 sys.exit(1)
 
-            except USR1Exception:
-                log("MAIN", "USR1 captured")
-                log("MAIN", "reinitializing")
-                c.cleanup()
-                initialized = False
+            #except USR1Exception:
+            #    log("MAIN", "USR1 captured")
+            #    last_reboot = datetime.datetime(year=2006, month=5, day=15)
 
             except IndexError as err:
                 log("MAIN", err)

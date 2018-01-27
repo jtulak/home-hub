@@ -23,8 +23,7 @@ import os
 import traceback
 import pytradfri
 import RPi.GPIO as GPIO
-
-GPIO.setmode(GPIO.BCM)
+import signal
 
 import huefri
 from huefri.common import Config
@@ -36,8 +35,38 @@ from huefri.tradfri import Tradfri
 from src.controller import Controller
 from src.alarm import Alarm
 
+CFG_EXAMPLE = """{
+"alarm": {
+	"sound": {
+		"path": "beep.mp3",
+		"volume_increment": 10,
+		"volume_initial": 10,
+		"force_alsa": true
+	} ,
+	"brightening": {
+		"duration": 1,
+		"step": 1,
+	},
+},
+"tradfri":{
+	"addr": "tradfri",
+	"secret": "XXXXXXXXX",
+	"controlled": [0],
+	"main": 0
+	}
+}
+"""
+
+
+class USR1Exception(Exception):
+    pass
+
+def onsig1(a, b):
+    raise USR1Exception()
+
 def main():
     initialized = False
+    signal.signal(signal.SIGUSR1,onsig1)
     Config.path = os.path.join(
         os.path.dirname(os.path.realpath(__file__)),
         "config.json")
@@ -46,6 +75,7 @@ def main():
     try:
         while True:
             try:
+                time.sleep(1)
                 if not initialized:
                     # bind GPIO pins
                     c = Controller(Config, [
@@ -63,66 +93,37 @@ def main():
                 else:
                     c.update()
                     alarm.alarm()
+
             except pytradfri.error.ClientError as ex:
                 print("An error occured with Tradfri: %s" % str(ex))
+
             except pytradfri.error.RequestTimeout:
                 """ This exception is raised here and there and doesn't cause anything.
                     So print just a short notice, not a full stacktrace.
                 """
                 log("MAIN", "Tradfri request timeout, retrying...")
-            except huefri.common.BadConfigPathError as ex:
+
+            except (KeyError, huefri.common.BadConfigPathError) as ex:
                 print("An error occured with configuration: %s" % str(ex))
-                print("""{
-"alarm": {
-	"sound": {
-		"path": "beep.mp3",
-		"volume_increment": 10,
-		"volume_initial": 10,
-		"force_alsa": true
-	} ,
-	"brightening": {
-		"duration": 1,
-		"step": 1,
-	},
-},
-"tradfri":{
-	"addr": "tradfri",
-	"secret": "XXXXXXXXX",
-	"controlled": [0],
-	"main": 0
-	}
-}
-""")
-            except KeyError as ex:
-                print("An error occured with configuration: %s" % str(ex))
-                print("""{
-"alarm": {
-	"sound": {
-		"path": "beep.mp3",
-		"volume_increment": 10,
-		"volume_initial": 10,
-		"force_alsa": true
-	} ,
-	"brightening": {
-		"duration": 1,
-		"step": 1,
-	},
-},
-"tradfri":{
-	"addr": "tradfri",
-	"secret": "XXXXXXXXX",
-	"controlled": [0],
-	"main": 0
-	}
-}
-""")
+                print("The config file should look like:\n%s" % CFG_EXAMPLE)
                 sys.exit(1)
-                sys.exit(1)
+
+            except USR1Exception:
+                log("MAIN", "USR1 captured")
+                log("MAIN", "reinitializing")
+                c.cleanup()
+                initialized = False
+
+            except IndexError as err:
+                log("MAIN", err)
+                log("MAIN", "reinitializing")
+                c.cleanup()
+                initialized = False
 
             except Exception as err:
                 traceback.print_exc()
                 log("MAIN", err)
-            time.sleep(1)
+
     except KeyboardInterrupt:
         log("MAIN", "Exiting on ^c.")
         c.cleanup()

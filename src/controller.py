@@ -17,7 +17,6 @@
 #
 from datetime import datetime, timedelta
 import RPi.GPIO as GPIO
-GPIO.setmode(GPIO.BCM)
 
 from huefri.hue import Hue
 from huefri.tradfri import Tradfri
@@ -35,7 +34,7 @@ class Controller(object):
     # after button release. The standard callback will continue only when this
     # function returns true
     callback_condition = None
-    
+
     def __init__(self, config, binding):
         """ binding is a list of tuples (pin number, event) """
         try:
@@ -64,6 +63,7 @@ class Controller(object):
         self.alarm_start = False
         self.prev_brightness = 0
 
+        GPIO.setmode(GPIO.BCM)
         for (pin, event) in binding:
             print("setting up pin %d" % pin)
             GPIO.setup(pin, GPIO.IN)
@@ -241,4 +241,3 @@ class Controller(object):
             self.hue.set_brightness(0)
         if self.tradfri:
             self.tradfri.set_brightness(0)
-

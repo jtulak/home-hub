@@ -20,6 +20,10 @@ import RPi.GPIO as GPIO
 
 from huefri.hue import Hue
 from huefri.tradfri import Tradfri
+from huefri.common import log
+
+def _log(msg):
+    log("Controller", msg)
 
 class Controller(object):
 
@@ -65,7 +69,7 @@ class Controller(object):
 
         GPIO.setmode(GPIO.BCM)
         for (pin, event) in binding:
-            print("setting up pin %d" % pin)
+            _log("setting up pin %d" % pin)
             GPIO.setup(pin, GPIO.IN)
             GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
             GPIO.add_event_detect(pin, GPIO.BOTH, callback=self.callback, bouncetime=self.bouncetime)
@@ -90,19 +94,19 @@ class Controller(object):
 
     def callback_rising(self, activated_pin):
         """ Callback called after a button was pressed. """
-        print("RISING %d" % activated_pin)
+        _log("RISING %d" % activated_pin)
         event = self.pin2event(activated_pin)
         now = datetime.now()
 
         if (event == self._last_event and
                 timedelta(milliseconds=self.bouncetime) > (now - self._last_event_time)):
             # same event, less than bounce time, ignore
-            print("event %s bounced" % event)
+            _log("event %s bounced" % event)
             return
         if (event != self._last_event and
                 timedelta(milliseconds=self.sequncetime) > (now - self._last_event_time)):
             # different event, but less than sequence time, ignore
-            print("event %s came too soon after the previous one, ignored" % event)
+            _log("event %s came too soon after the previous one, ignored" % event)
             return
 
         self._pressed = activated_pin
@@ -112,19 +116,19 @@ class Controller(object):
     def callback_falling(self, activated_pin):
         """ Callback called after button release. """
 
-        print("FALLING %d" % activated_pin)
+        _log("FALLING %d" % activated_pin)
         if self._pressed is None:
-            print("release without press? wtf? pin %d" % activated_pin)
+            _log("release without press? wtf? pin %d" % activated_pin)
             return
 
         event = self.pin2event(activated_pin)
         now = datetime.now()
 
         if self._pressed != activated_pin:
-            print("pressed (%d)/released (%d) pin mismatch? o_O"%(self._pressed, activated_pin))
+            _log("pressed (%d)/released (%d) pin mismatch? o_O"%(self._pressed, activated_pin))
             return
         if timedelta(milliseconds=self.filtertime) > (now - self._pressed_time):
-            print("event %s was too short" % event)
+            _log("event %s was too short" % event)
             return
 
         self._last_event_time = now
@@ -135,7 +139,7 @@ class Controller(object):
 
         if callable(self.callback_condition):
             if not self.callback_condition():
-                print("Callback interrupted by condition.")
+                _log("Callback interrupted by condition.")
                 return
 
         try:
@@ -156,7 +160,7 @@ class Controller(object):
             elif event == 'onoff':
                 self.onoff()
             elif event == 'alarm':
-                print("Alarm signal")
+                _log("Alarm signal")
                 self.alarm_start = True
             else:
                 raise ValueError("Unknown event '%s' for known pin %d" % (event, activated_pin))
@@ -194,49 +198,49 @@ class Controller(object):
         return brightnesses
 
     def up(self):
-        print("up")
+        _log("up")
         if self.hue:
             self.hue.brightness_inc()
         if self.tradfri:
             self.tradfri.brightness_inc()
 
     def down(self):
-        print("down")
+        _log("down")
         if self.hue:
             self.hue.brightness_dec()
         if self.tradfri:
             self.tradfri.brightness_dec()
 
     def left(self):
-        print("left")
+        _log("left")
         if self.hue:
             self.hue.color_prev()
         if self.tradfri:
             self.tradfri.color_prev()
 
     def right(self):
-        print("right")
+        _log("right")
         if self.hue:
             self.hue.color_next()
         if self.tradfri:
             self.tradfri.color_next()
 
     def onoff(self):
-        print("onoff")
+        _log("onoff")
         if self.tradfri.state:
             self.off()
         else:
             self.on()
 
     def on(self):
-        print("on")
+        _log("on")
         if self.hue:
             self.hue.set_brightness(255)
         if self.tradfri:
             self.tradfri.set_brightness(255)
 
     def off(self):
-        print("off")
+        _log("off")
         if self.hue:
             self.hue.set_brightness(0)
         if self.tradfri:

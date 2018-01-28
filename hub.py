@@ -38,26 +38,29 @@ from src.alarm import Alarm
 
 CFG_EXAMPLE = """{
 "alarm": {
-	"sound": {
-		"path": "beep.mp3",
-		"volume_increment": 10,
-		"volume_initial": 10,
-		"force_alsa": true
-	} ,
-	"brightening": {
-		"duration": 1,
-		"step": 1,
-	},
+    "gpio": None,
+    "sound": {
+        "path": "beep.mp3",
+        "volume_increment": 10,
+        "volume_initial": 10,
+        "force_alsa": true
+    } ,
+    "brightening": {
+        "duration": 1,
+        "step": 1,
+    },
 },
 "tradfri":{
-	"addr": "tradfri",
-	"secret": "XXXXXXXXX",
-	"controlled": [0],
-	"main": 0
-	}
+    "addr": "tradfri",
+    "secret": "XXXXXXXXX",
+    "controlled": [0],
+    "main": 0
+    }
 }
 """
 
+def _log(msg):
+    _log(msg)
 
 class USR1Exception(Exception):
     pass
@@ -100,7 +103,7 @@ def main():
                 # gateway
                 now = datetime.datetime.now()
                 if now.hour == 4 and ((now - last_reboot).seconds/3600) > 5:
-                    log("MAIN", "Time for reboot of Tradfri gateway...")
+                    _log("Time for reboot of Tradfri gateway...")
                     c.tradfri.reboot()
                     c.cleanup()
                     initialized = False
@@ -108,35 +111,35 @@ def main():
                     last_reboot = now
 
             except pytradfri.error.ClientError as ex:
-                print("An error occured with Tradfri: %s" % str(ex))
+                _log("An error occured with Tradfri: %s" % str(ex))
 
             except pytradfri.error.RequestTimeout:
                 """ This exception is raised here and there and doesn't cause anything.
-                    So print just a short notice, not a full stacktrace.
+                    So _log just a short notice, not a full stacktrace.
                 """
-                log("MAIN", "Tradfri request timeout, retrying...")
+                _log("Tradfri request timeout, retrying...")
 
             except (KeyError, huefri.common.BadConfigPathError) as ex:
-                print("An error occured with configuration: %s" % str(ex))
-                print("The config file should look like:\n%s" % CFG_EXAMPLE)
+                _log("An error occured with configuration: %s" % str(ex))
+                _log("The config file should look like:\n%s" % CFG_EXAMPLE)
                 sys.exit(1)
 
             #except USR1Exception:
-            #    log("MAIN", "USR1 captured")
+            #    _log("USR1 captured")
             #    last_reboot = datetime.datetime(year=2006, month=5, day=15)
 
             except IndexError as err:
-                log("MAIN", err)
-                log("MAIN", "reinitializing")
+                _log(err
+                _log("reinitializing")
                 c.cleanup()
                 initialized = False
 
             except Exception as err:
                 traceback.print_exc()
-                log("MAIN", err)
+                _log(err)
 
     except KeyboardInterrupt:
-        log("MAIN", "Exiting on ^c.")
+        _log("Exiting on ^c.")
         c.cleanup()
         sys.exit(0)
 

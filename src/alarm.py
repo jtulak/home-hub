@@ -31,6 +31,9 @@ from huefri.tradfri import Tradfri
 
 SOUND = None # do not set
 
+def _log(msg):
+    log("Alarm", msg)
+
 def callback_condition():
     global SOUND
     if SOUND.is_playing():
@@ -49,7 +52,7 @@ class Sound(object):
         else:
             vlc_inst = vlc.Instance('--input-repeat=-1')
         vlc_med = vlc_inst.media_new(self.path)
-        self.player = vlc_inst.media_player_new() 
+        self.player = vlc_inst.media_player_new()
         self.player.set_media(vlc_med)
         self._volume = cnf['volume_initial']
         self._volume_starting = cnf['volume_initial']
@@ -73,7 +76,7 @@ class Sound(object):
             value = 0
 
         self._volume = value
-        print("set volume to %d" % value)
+        _log("set volume to %d" % value)
         self.player.audio_set_volume(value)
 
     def is_playing(self):
@@ -82,22 +85,23 @@ class Sound(object):
     def play(self):
         self.volume_reset()
         self.player.play()
-        print("playing %s" % self.path)
+        _log("playing %s" % self.path)
 
 
     def stop(self):
         self.volume_reset()
         self.player.stop()
-        print("Stop playing %s" % self.path)
+        _log("Stop playing %s" % self.path)
 
 class Alarm(object):
     br_max = 254 # max brightness value
 
     def __init__(self, config, controller):
         global SOUND
-        
+
         cnf = config.get()['alarm']
         self.controller = controller
+        self.gpio = cnf['gpio']
         self.step = cnf['brightening']['step']
         self.duration_sec = cnf['brightening']['duration']
         self.duration = round(self.duration_sec / self.step)
@@ -109,7 +113,7 @@ class Alarm(object):
         """ Compute what should be the brightness at any given time """
         if delta <= 0:
             return 0
-        
+
         # brightness gain of one step
         step = self.br_max / self.duration
         # how many steps since the start
@@ -139,8 +143,8 @@ class Alarm(object):
             # this block will run just once, when the alarm is starting
             self.alarm_started = datetime.now()
             self.controller.prev_brightness = 0
-            print("Should run alarm")
-        
+            _log("Should run alarm")
+
         if not self.alarm_started:
             if self.brightness_changed():
                 callback_condition()
@@ -153,16 +157,16 @@ class Alarm(object):
             self.controller.alarm_start = False
             self.alarm_started = None
             self.sound.play()
-            print("Alarm ending")
+            _log("Alarm ending")
             return
 
         if self.brightness_changed():
             self.controller.alarm_start = False
             self.alarm_started = None
-            print("Alarm aborted")
+            _log("Alarm aborted")
             return
 
         brightness = self.compute_brightness(delta)
         if brightness != self.controller.prev_brightness:
-            print("setting up brightness: %d" % brightness)
+            _log("setting up brightness: %d" % brightness)
             self.controller.set_brightness(brightness)

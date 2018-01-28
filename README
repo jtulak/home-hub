@@ -4,4 +4,3 @@ My quick solution to integrating Tradfri control and audio for alarm.
 
 Requirements:
 * [huefri](https://github.com/jtulak/huefri)
-* [HAP-python](https://github.com/ikalchev/HAP-python)

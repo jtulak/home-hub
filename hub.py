@@ -35,6 +35,7 @@ from huefri.tradfri import Tradfri
 
 from src.controller import Controller
 from src.alarm import Alarm
+from src.webgui import WebGUI
 
 CFG_EXAMPLE = """{
 "alarm": {
@@ -77,6 +78,11 @@ def main():
     c = None
     alarm = None
     last_reboot = datetime.datetime.now()
+    # start the web server
+    webgui = WebGUI(Alarm.ALARM_FILE)
+    webgui.run()
+
+    # main loop
     try:
         while True:
             try:

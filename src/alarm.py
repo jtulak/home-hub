@@ -94,6 +94,9 @@ class Sound(object):
 
 class Alarm(object):
     br_max = 254 # max brightness value
+    ALARM_FILE = os.path.join(
+            os.path.dirname(os.path.realpath(__file__)), '..',
+            "alarm_time")
 
     def __init__(self, config, controller):
         global SOUND
@@ -107,9 +110,7 @@ class Alarm(object):
         self.alarm_started = None
         SOUND = Sound(cnf['sound'])
         self.sound = SOUND
-        self.timer = AlarmTimer(os.path.join(
-            os.path.dirname(os.path.realpath(__file__)), '..',
-            "alarm_time"))
+        self.timer = AlarmTimer(self.ALARM_FILE)
 
     def compute_brightness(self, delta):
         """ Compute what should be the brightness at any given time """
@@ -137,6 +138,7 @@ class Alarm(object):
         return False
 
     def check_time(self):
+        """ Return True if the alarm should start now """
         return self.timer.check_now()
 
     def alarm(self):
@@ -185,8 +187,15 @@ class AlarmTimer(object):
         self.path = path
         self.load_file()
         self.last_check = datetime.now()
+        if self.time is None:
+            _log("No file with time exists. ({})".format(self.path))
+
+    def get_time(self):
+        """ Get the time the alarm is set to """
+        return self.time
 
     def load_file(self):
+        """ Load the set up time form a file (path given to __init__) """
         try:
             with open(self.path, 'r') as f:
                 line = f.readline().strip()
@@ -204,7 +213,6 @@ class AlarmTimer(object):
             self.load_file()
 
         if self.time is None:
-            _log("No file with time exists, skipping... ({})".format(self.path))
             return False
         return self.time == datetime.now().time().replace(second=0, microsecond=0)
 

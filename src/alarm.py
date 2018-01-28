@@ -15,11 +15,12 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
-import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, time
 import pytradfri
 import sys
 import vlc
+import re
+import os
 
 import huefri
 from huefri.common import Config
@@ -42,8 +43,6 @@ def callback_condition():
     return True
 
 class Sound(object):
-
-
     def __init__(self, cnf):
         self.path = cnf['path']
         self.volume_increment = cnf['volume_increment']
@@ -108,6 +107,9 @@ class Alarm(object):
         self.alarm_started = None
         SOUND = Sound(cnf['sound'])
         self.sound = SOUND
+        self.timer = AlarmTimer(os.path.join(
+            os.path.dirname(os.path.realpath(__file__)), '..',
+            "alarm_time"))
 
     def compute_brightness(self, delta):
         """ Compute what should be the brightness at any given time """
@@ -134,12 +136,14 @@ class Alarm(object):
 
         return False
 
+    def check_time(self):
+        return self.timer.check_now()
+
     def alarm(self):
         """ Main alarm function. Do one step, watch for interrupts. """
 
         self.sound.volume_update()
-
-        if self.controller.alarm_start and self.alarm_started is None:
+        if (self.gpio and self.controller.alarm_start or self.check_time()) and self.alarm_started is None:
             # this block will run just once, when the alarm is starting
             self.alarm_started = datetime.now()
             self.controller.prev_brightness = 0
@@ -170,3 +174,42 @@ class Alarm(object):
         if brightness != self.controller.prev_brightness:
             _log("setting up brightness: %d" % brightness)
             self.controller.set_brightness(brightness)
+
+
+class AlarmTimer(object):
+    """ An object encapsulating the set up alarm time operations. """
+    check_delta = timedelta(seconds=30)
+
+    def __init__(self, path : str):
+        """ Argument path: path to the file with set up time """
+        self.path = path
+        self.load_file()
+        self.last_check = datetime.now()
+
+    def load_file(self):
+        try:
+            with open(self.path, 'r') as f:
+                line = f.readline().strip()
+            if not re.match('[0-9][0-9]:[0-9][0-9]', line):
+                raise SyntaxError("Alarm file {} could not be parsed.".format(self.path))
+            self.time = datetime.strptime(line, '%H:%M').time()
+        except FileNotFoundError:
+            self.time = None
+        except ValueError as ex:
+            raise SyntaxError("Alarm file {} could not be parsed. Error: '{}'\nFile content: '{}'".format(self.path, ex, line))
+
+    def check_now(self):
+        """ Check if now is the set up time. Check the configured time once in a time. """
+        if self.last_check + self.check_delta < datetime.now() or not self.time:
+            self.load_file()
+
+        if self.time is None:
+            _log("No file with time exists, skipping... ({})".format(self.path))
+            return False
+        return self.time == datetime.now().time().replace(second=0, microsecond=0)
+
+    def set_time(self, when : time):
+        """ Write new time to the file """
+        self.time = when
+        with open(self.path, 'w') as f:
+            f.write(self.time.strftime('%H:%M\n'))

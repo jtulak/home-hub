@@ -38,7 +38,7 @@ from src.alarm import Alarm
 
 CFG_EXAMPLE = """{
 "alarm": {
-    "gpio": None,
+    "gpio": False,
     "sound": {
         "path": "beep.mp3",
         "volume_increment": 10,
@@ -60,7 +60,7 @@ CFG_EXAMPLE = """{
 """
 
 def _log(msg):
-    _log(msg)
+    log("MAIN", msg)
 
 class USR1Exception(Exception):
     pass
@@ -129,7 +129,7 @@ def main():
             #    last_reboot = datetime.datetime(year=2006, month=5, day=15)
 
             except IndexError as err:
-                _log(err
+                _log(err)
                 _log("reinitializing")
                 c.cleanup()
                 initialized = False
@@ -139,7 +139,7 @@ def main():
                 _log(err)
 
     except KeyboardInterrupt:
-        _log("Exiting on ^c.")
+        print("Exiting on ^c.")
         c.cleanup()
         sys.exit(0)
 

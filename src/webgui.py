@@ -113,9 +113,13 @@ class WebServer(object):
     def templater(self, html, data={}):
         """ Insert data into the template """
         self.timer.load_file()
-        html = html.replace('$CURRENT$', self.timer.get_time().strftime("%H:%M"))
+
+        data['CURRENT'] = self.timer.get_time().strftime("%H:%M")
+        data['ENABLED'] = ''
+
         for key, value in data.items():
             html = html.replace('${}$'.format(key), str(value))
+
         return html
 
     def run(self):

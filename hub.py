@@ -125,6 +125,9 @@ def main():
                 """
                 _log("Tradfri request timeout, retrying...")
 
+            except pytradfri.error.RequestError as ex:
+                _log(ex)
+
             except (KeyError, huefri.common.BadConfigPathError) as ex:
                 _log("An error occured with configuration: %s" % str(ex))
                 _log("The config file should look like:\n%s" % CFG_EXAMPLE)

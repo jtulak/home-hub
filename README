@@ -2,5 +2,8 @@ Home-hub
 ========
 My quick solution to integrating Tradfri control and audio for alarm.
 
+The alarm can be either started with a GPIO signal, or based on system time,
+configurable through web interface on port 8001.
+
 Requirements:
 * [huefri](https://github.com/jtulak/huefri)

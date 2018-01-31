@@ -35,12 +35,6 @@ SOUND = None # do not set
 def _log(msg):
     log("Alarm", msg)
 
-def callback_condition():
-    global SOUND
-    if SOUND.is_playing():
-        SOUND.stop()
-        return False
-    return True
 
 class Sound(object):
     def __init__(self, cnf):
@@ -143,6 +137,12 @@ class Alarm(object):
 
     def alarm(self):
         """ Main alarm function. Do one step, watch for interrupts. """
+        def callback_condition():
+            global SOUND
+            if SOUND.is_playing():
+                SOUND.stop()
+                return False
+            return True
 
         self.sound.volume_update()
         if (self.gpio and self.controller.alarm_start or self.check_time()) and self.alarm_started is None:
@@ -167,6 +167,9 @@ class Alarm(object):
             return
 
         if self.brightness_changed():
+            _log("Unexpected brightness value. Current {}, prev {}".format(
+                self.controller.get_brigtnesses(), self.controller.prev_brightness
+            ))
             self.controller.alarm_start = False
             self.alarm_started = None
             _log("Alarm aborted")
@@ -185,6 +188,7 @@ class AlarmTimer(object):
     def __init__(self, path : str):
         """ Argument path: path to the file with set up time """
         self.path = path
+        self.enabled = False
         self.load_file()
         self.last_check = datetime.now()
         if self.time is None:
@@ -196,12 +200,26 @@ class AlarmTimer(object):
 
     def load_file(self):
         """ Load the set up time form a file (path given to __init__) """
+        def syntax_error(reason):
+            return SyntaxError("Alarm file {} could not be parsed: {}".format(self.path, reason))
+
         try:
             with open(self.path, 'r') as f:
+                # read time
                 line = f.readline().strip()
-            if not re.match('[0-9][0-9]:[0-9][0-9]', line):
-                raise SyntaxError("Alarm file {} could not be parsed.".format(self.path))
-            self.time = datetime.strptime(line, '%H:%M').time()
+                if not re.match('[0-9][0-9]:[0-9][0-9]', line):
+                    raise syntax_error("Can't parse the time on line 0: '{}'".format(line))
+                self.time = datetime.strptime(line, '%H:%M').time()
+
+                # try to read enabled/disabled
+                line = f.readline().strip()
+                if line == "disabled":
+                    self.enabled = False
+                elif line == "enabled" or line == '':
+                    self.enabled = True
+                else:
+                    raise syntax_error("There is a garbage on line 1: '{}'".format(line))
+
         except FileNotFoundError:
             self.time = None
         except ValueError as ex:
@@ -216,8 +234,9 @@ class AlarmTimer(object):
             return False
         return self.time == datetime.now().time().replace(second=0, microsecond=0)
 
-    def set_time(self, when : time):
+    def set_time(self, when:time, enabled:bool=True):
         """ Write new time to the file """
         self.time = when
         with open(self.path, 'w') as f:
-            f.write(self.time.strftime('%H:%M\n'))
+            f.write(self.time.strftime('%H:%M\n{}'.format(
+                'enabled' if enabled else 'disabled')))

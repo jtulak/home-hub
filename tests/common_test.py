@@ -59,6 +59,21 @@ class TestAlarmTimer(AlarmTestCase):
             t = alarm.AlarmTimer("foobar")
             self.assertTimeEqual(t.time, time(3, 5))
 
+        with mock.patch('src.alarm.open', mock.mock_open(read_data='13:25\ndisabled')) as m:
+            t = alarm.AlarmTimer("foobar")
+            self.assertTimeEqual(t.time, time(13, 25))
+            self.assertFalse(t.enabled)
+
+        with mock.patch('src.alarm.open', mock.mock_open(read_data='13:25\n')) as m:
+            t = alarm.AlarmTimer("foobar")
+            self.assertTimeEqual(t.time, time(13, 25))
+            self.assertTrue(t.enabled)
+
+        with mock.patch('src.alarm.open', mock.mock_open(read_data='13:25\nenabled')) as m:
+            t = alarm.AlarmTimer("foobar")
+            self.assertTimeEqual(t.time, time(13, 25))
+            self.assertTrue(t.enabled)
+
     def test_now(self):
         now = datetime.now().time().replace(second=0, microsecond=0)
         with mock.patch('src.alarm.open', mock.mock_open(read_data=now.strftime('%H:%M'))) as m:
@@ -68,7 +83,7 @@ class TestAlarmTimer(AlarmTestCase):
             t.time = t.time.replace(hour=(t.time.hour+2)%24)
             self.assertFalse(t.check_now())
 
-    def test_set(self):
+    def test_set_enable(self):
         m = mock.mock_open(read_data="13:25")
         new_time = time(8, 35)
         with mock.patch('src.alarm.open', m, create=True):
@@ -76,4 +91,14 @@ class TestAlarmTimer(AlarmTestCase):
             t.set_time(new_time)
             self.assertTimeEqual(t.time, new_time)
         handle = m()
-        handle.write.assert_called_once_with(new_time.strftime('%H:%M\n'))
+        handle.write.assert_called_once_with(new_time.strftime('%H:%M\nenabled'))
+
+    def test_set_disable(self):
+        m = mock.mock_open(read_data="13:25")
+        new_time = time(8, 35)
+        with mock.patch('src.alarm.open', m, create=True):
+            t = alarm.AlarmTimer("foobar")
+            t.set_time(new_time, enabled=False)
+            self.assertTimeEqual(t.time, new_time)
+        handle = m()
+        handle.write.assert_called_once_with(new_time.strftime('%H:%M\ndisabled'))

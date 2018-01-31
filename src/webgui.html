@@ -4,10 +4,16 @@
         <meta name="viewport" content="width=device-width">
         <title>Alarm Clock</title>
         <style>
+            body {
+                background-color: #202020;
+                color: #777;
+            }
+
             /* The switch - the box around the slider */
             .switch {
             position: relative;
             display: inline-block;
+            top: 9px;
             width: 60px;
             height: 34px;
             }
@@ -23,7 +29,7 @@
             left: 0;
             right: 0;
             bottom: 0;
-            background-color: #ccc;
+            background-color: #444;
             -webkit-transition: .4s;
             transition: .4s;
             }
@@ -35,39 +41,40 @@
             width: 26px;
             left: 4px;
             bottom: 4px;
-            background-color: white;
+            background-color: #777;
             -webkit-transition: .4s;
             transition: .4s;
             }
 
             input:checked + .slider {
-            background-color: #2196F3;
+            background-color: #444;
             }
 
             input:focus + .slider {
-            box-shadow: 0 0 1px #2196F3;
+            box-shadow: 0 0 1px #444;
             }
 
             input:checked + .slider:before {
             -webkit-transform: translateX(26px);
             -ms-transform: translateX(26px);
             transform: translateX(26px);
+            background-color: rgb(194, 105, 3);
+
             }
 
-            /* Rounded sliders */
-            .slider.round {
-            border-radius: 34px;
-            }
-
-            .slider.round:before {
-            border-radius: 50%;
-            }
             .time input {
                 position: relative;
                 display: inline-block;
                 width: 120px;
                 height: 34px;
                 font-size: 25px;
+                background-color: #999;
+                border: 0px;
+                color: #222;
+            }
+            .submit {
+                display: inline-block;
+                margin-top: 20px;
             }
             .submit input {
                 position: relative;
@@ -75,6 +82,8 @@
                 font-size: 25px;
                 width: 100px;
                 height: 34px;
+                background-color:rgb(194, 105, 3);
+                border: 0px solid black;
             }
         </style>
     </head>
@@ -88,8 +97,7 @@
                 <label>Begin to brighten at <small>(20 minutes before you want to wake up)</small></label><br>
                 <label class="time">
                     <input id="time" type="time" name="time" value="$CURRENT$">
-                </label><br>
-                <label>Alarm enabled</label><br>
+                </label>
                 <label class="switch">
                         <input type="checkbox" name="enabled" id="enabled" $ENABLED$>
                         <span class="slider"></span>

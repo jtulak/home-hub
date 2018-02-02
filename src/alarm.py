@@ -86,6 +86,40 @@ class Sound(object):
         self.player.stop()
         _log("Stop playing %s" % self.path)
 
+class Queue(object):
+    """ A fifo queue implementation that drops old items if it gets over max_size """
+    def __init__(self, max_size=0):
+        self.max_size = max_size
+        self.data = []
+        self.items = 0
+
+    def full(self):
+        """ Return True if the queue is at its max capacity """
+        return self.max_size and self.max_size == self.items
+
+    def put(self, item):
+        """ Put a new item into the top of the queue """
+        if self.full():
+            self.pop()
+        self.data.append(item)
+        self.items += 1
+
+    def pop(self):
+        """ Pop an item from the bottom of the queue """
+        if self.items:
+            self.items -= 1
+        return self.data.pop(0)
+
+    def flush(self):
+        """ Drop all data """
+        self.data = []
+        self.items = 0
+
+    def __iter__(self):
+        for i in self.data:
+            yield i
+
+
 class Alarm(object):
     br_max = 254 # max brightness value
     ALARM_FILE = os.path.join(
@@ -105,6 +139,7 @@ class Alarm(object):
         SOUND = Sound(cnf['sound'])
         self.sound = SOUND
         self.timer = AlarmTimer(self.ALARM_FILE)
+        self.prev_brightness = Queue(max_size=5)
 
     def compute_brightness(self, delta):
         """ Compute what should be the brightness at any given time """
@@ -123,12 +158,19 @@ class Alarm(object):
 
     def brightness_changed(self):
         """ Return True if any light is different from expected value """
+        # first check if there was a change
         brs = self.controller.get_brigtnesses()
-
+        potential_change = False
         for br in brs:
             if br != self.controller.prev_brightness:
-                return True
-
+                potential_change = True
+        # then filter out this change if it is just a timeout issue
+        # if the brightnesses are all within the list of the last few values we send,
+        # then ignore this change
+        if potential_change:
+            for br in brs:
+                if not br in self.prev_brightness:
+                    return True
         return False
 
     def check_time(self):
@@ -149,6 +191,7 @@ class Alarm(object):
             # this block will run just once, when the alarm is starting
             self.alarm_started = datetime.now()
             self.controller.prev_brightness = 0
+            self.prev_brightness.flush()
             _log("Should run alarm")
 
         if not self.alarm_started:
@@ -178,6 +221,7 @@ class Alarm(object):
         brightness = self.compute_brightness(delta)
         if brightness != self.controller.prev_brightness:
             _log("setting up brightness: %d" % brightness)
+            self.prev_brightness.put(brightness)
             self.controller.set_brightness(brightness)
 
 

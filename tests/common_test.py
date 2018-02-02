@@ -22,6 +22,29 @@ from unittest import mock
 from src import alarm
 from datetime import datetime, time
 
+class TestQueue(unittest.TestCase):
+
+    def setUp(self):
+        alarm._log = lambda x: None
+
+    def tearDown(self):
+        pass
+
+    def test_queue(self):
+        q = alarm.Queue(max_size=3)
+        self.assertFalse(q.full())
+        q.put(1)
+        self.assertFalse(q.full())
+        q.put(2)
+        self.assertFalse(q.full())
+        q.put(3)
+        self.assertTrue(q.full())
+        self.assertEqual(q.data, [1,2,3])
+        self.assertEqual(q.pop(), 1)
+        q.put(4)
+        q.put(5)
+        self.assertEqual(q.data, [3,4,5])
+        self.assertEqual(list(q), [3,4,5])
 
 class AlarmTestCase(unittest.TestCase):
     def assertTimeEqual(self, a, b):

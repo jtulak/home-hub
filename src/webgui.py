@@ -28,7 +28,7 @@
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import os
 import re
-from datetime import datetime
+import datetime as dt
 import urllib.parse
 from multiprocessing import Process
 from src.alarm import AlarmTimer
@@ -40,6 +40,9 @@ def _log(msg):
     log("WebGUI", msg)
 
 THISDIR = os.path.dirname(os.path.realpath(__file__))
+
+def addtime(time, delta):
+    return (dt.datetime.combine(dt.date(1,1,1),time) + delta).time()
 
 # HTTPRequestHandler class
 class AlarmHTTPServer_RequestHandler(BaseHTTPRequestHandler):
@@ -101,23 +104,23 @@ class AlarmHTTPServer_RequestHandler(BaseHTTPRequestHandler):
             return self._data_get
         except AttributeError:
             url = urllib.parse.urlparse(self.path)
-            self._data_get = dict(
+            if url.query:
+                self._data_get = dict(
                     (map(urllib.parse.unquote, val.split('=')))
                     for val in url.query.split('&')
-                )
+               )
+            else:
+                self._data_get = dict()
             return self._data_get
 
     def do_POST(self):
         """ Handle a POST request """
         data = self.get_POST_data()
-        new_time = datetime.strptime(data['time'], '%H:%M').time()
+        new_time = dt.datetime.strptime(data['time'], '%H:%M').time()
         enabled = data['enabled'] if 'enabled' in data else False
         self.handler(new_time=new_time, enabled=enabled)
 
-        msg = "New time was saved"
-        if not enabled:
-            msg = "Alarm was disabled"
-        self._redirect(urllib.parse.urlparse(self.path).path, message=msg)
+        self._redirect(urllib.parse.urlparse(self.path).path)
 
     def do_GET(self):
         """ Handle a GET request """
@@ -146,13 +149,15 @@ class WebServer(object):
 
     def handler(self, new_time, enabled):
         """ A handler called to set up a new time from server """
+        new_time = addtime(new_time, -dt.timedelta(seconds=60*20))
         self.timer.set_time(new_time, enabled)
 
     def templater(self, html, data={}):
         """ Insert data into the template """
         self.timer.load_file()
+        time = addtime(self.timer.get_time(), dt.timedelta(seconds=60*20))
 
-        data['CURRENT'] = self.timer.get_time().strftime("%H:%M")
+        data['CURRENT'] = time.strftime("%H:%M")
         data['ENABLED'] = 'checked' if self.timer.enabled else ''
 
         for key, value in data.items():

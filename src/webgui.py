@@ -27,6 +27,7 @@
 
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import os
+import re
 from datetime import datetime
 import urllib.parse
 from multiprocessing import Process
@@ -66,35 +67,57 @@ class AlarmHTTPServer_RequestHandler(BaseHTTPRequestHandler):
         # Write content as utf-8 data
         self.wfile.write(bytes(message, "utf8"))
 
+    def _redirect(self, target, message=None):
+        self.send_response(301)
+        if message:
+            target +='?message={}'.format(urllib.parse.quote(message))
+        self.send_header('Location', target)
+        self.end_headers()
+
     def _send_image(self, filename):
         self._send_headers(200, 'image/x-icon')
         # Send message back to client
         with open(filename, 'rb') as file:
             self.wfile.write(file.read())
 
-    def _get_post_data(self):
+    def get_POST_data(self):
         """ Return a dict with POST data, empty dict if no data present """
-        content_length = int(self.headers['Content-Length'])
+        try:
+            return self._data_post
+        except AttributeError:
+            content_length = int(self.headers['Content-Length'])
 
-        data = {}
-        for line in self.rfile.read(content_length).decode("utf-8").split('&'):
-            key, val = urllib.parse.unquote(line).split('=')
-            data[key] = val
-        _log('Got POST data: {}'.format(data))
-        return data
+            data = {}
+            for line in self.rfile.read(content_length).decode("utf-8").split('&'):
+                key, val = urllib.parse.unquote(line).split('=')
+                data[key] = val
+            _log('Got POST data: {}'.format(data))
+            self._data_post = data
+            return self._data_post
+
+    def get_GET_data(self):
+        """ Return a dict {key1:val, key2:val, ...} for GET query """
+        try:
+            return self._data_get
+        except AttributeError:
+            url = urllib.parse.urlparse(self.path)
+            self._data_get = dict(
+                    (map(urllib.parse.unquote, val.split('=')))
+                    for val in url.query.split('&')
+                )
+            return self._data_get
 
     def do_POST(self):
         """ Handle a POST request """
-        data = self._get_post_data()
+        data = self.get_POST_data()
         new_time = datetime.strptime(data['time'], '%H:%M').time()
         enabled = data['enabled'] if 'enabled' in data else False
         self.handler(new_time=new_time, enabled=enabled)
 
-        self._send_headers(200, 'text/html')
         msg = "New time was saved"
         if not enabled:
             msg = "Alarm was disabled"
-        self._send_html({'MESSAGE': msg})
+        self._redirect(urllib.parse.urlparse(self.path).path, message=msg)
 
     def do_GET(self):
         """ Handle a GET request """
@@ -105,7 +128,8 @@ class AlarmHTTPServer_RequestHandler(BaseHTTPRequestHandler):
             self._send_image(os.path.join(THISDIR, 'apple-touch-icon.png'))
         elif url.path == '/':
             self._send_headers(200, 'text/html')
-            self._send_html({'MESSAGE': ''})
+            get_data = self.get_GET_data()
+            self._send_html({'MESSAGE': get_data.get('message', '')})
         else:
             self._send_headers(404, 'text/html')
             self._send_html({'MESSAGE': 'Error 404, this url does not exist. There is only one site.'})

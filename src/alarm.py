@@ -187,7 +187,8 @@ class Alarm(object):
             return True
 
         self.sound.volume_update()
-        if (self.gpio and self.controller.alarm_start or self.check_time()) and self.alarm_started is None:
+        if (self.gpio and self.controller.alarm_start or self.check_time()) and \
+            self.alarm_started is None and self.timer.enabled:
             # this block will run just once, when the alarm is starting
             self.alarm_started = datetime.now()
             self.controller.prev_brightness = 0
@@ -282,5 +283,7 @@ class AlarmTimer(object):
         """ Write new time to the file """
         self.time = when
         with open(self.path, 'w') as f:
-            f.write(self.time.strftime('%H:%M\n{}'.format(
-                'enabled' if enabled else 'disabled')))
+            f.write('{time}\n{enabled}\n'.format(
+                time = self.time.strftime('%H:%M'),
+                enabled = 'enabled' if enabled else 'disabled'
+            ))

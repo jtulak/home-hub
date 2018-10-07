@@ -90,10 +90,23 @@ class AlarmHTTPServer_RequestHandler(BaseHTTPRequestHandler):
         except AttributeError:
             content_length = int(self.headers['Content-Length'])
 
+            raw_request = self.rfile.read(content_length).decode("utf-8").split('&')
             data = {}
-            for line in self.rfile.read(content_length).decode("utf-8").split('&'):
+            for line in raw_request:
                 key, val = urllib.parse.unquote(line).split('=')
                 data[key] = val
+
+            # Disabled checkbox is not part of post data.
+            # Detect if some fields are missing and if so, set them to False.
+            try:
+                for key in data['all_fields'].split(';'):
+                    if key not in data:
+                        data[key] = False
+                # And now drop this internal field
+                del data['all_fields']
+            except KeyError as ex:
+                _log('The field "all_fields" is missing, I can\'t check for disabled values.')
+
             _log('Got POST data: {}'.format(data))
             self._data_post = data
             return self._data_post
@@ -150,6 +163,9 @@ class WebServer(object):
     def handler(self, new_time, enabled):
         """ A handler called to set up a new time from server """
         new_time = addtime(new_time, -dt.timedelta(seconds=60*20))
+        _log("Setting timer to: {time} ({enabled})".format(
+            time = new_time, enabled='enabled' if enabled else 'disabled'
+        ))
         self.timer.set_time(new_time, enabled)
 
     def templater(self, html, data={}):
